@@ -24,8 +24,10 @@ class ResidualBlock(nn.Module):
 class AlphaZeroResNet(nn.Module):
     def __init__(self, num_residual_blocks, num_channels=64):
         super(AlphaZeroResNet, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=num_channels, kernel_size=3, stride=1, padding=1)
-        self.bn1 = nn.BatchNorm2d(num_channels)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=num_channels//2, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm2d(num_channels//2)
+        self.conv2 = nn.Conv2d(in_channels=num_channels//2, out_channels=num_channels, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(num_channels)
         
         self.residual_blocks = nn.Sequential(
             *[ResidualBlock(num_channels, num_channels) for _ in range(num_residual_blocks)]
@@ -44,6 +46,7 @@ class AlphaZeroResNet(nn.Module):
         
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
         x = self.residual_blocks(x)
         
         # Policy head

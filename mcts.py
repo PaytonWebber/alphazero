@@ -159,10 +159,11 @@ class MCTS_AlphaZero:
         self.training = training
 
     def search(self) -> tuple:
+
         for _ in range(self.num_simulations):
             node = self.select()
             if not node.state.is_terminal() and node.is_leaf():
-                self.expand(node, node == self.root)
+                self.expand(node)
                 node = max(node.children, key=lambda n: n.PUCT(self.C))
             reward = self.playout(node)
             self.backpropagate(node, reward)
@@ -182,7 +183,7 @@ class MCTS_AlphaZero:
             node = max(node.children, key=lambda n: n.PUCT(self.C))
         return node
 
-    def expand(self, node: Node_AlphaZero, add_noise: bool = False) -> None:
+    def expand(self, node: Node_AlphaZero) -> None:
         """Expanding the node by adding a single, randomly selected child from the possible moves."""
         noise = np.random.dirichlet([0.03] * 9).reshape(3, 3)
         policy, _ = self.model.predict(node.state._encode())
@@ -192,7 +193,7 @@ class MCTS_AlphaZero:
         new_policy = np.zeros((3, 3), dtype=np.float32)
         for action in node.state.legal_actions():
             new_policy[action] = policy[action]
-            if add_noise and self.training:
+            if self.training:
                 new_policy[action] = (1 - 0.25) * new_policy[action] + 0.25 * noise[
                     action
                 ]

@@ -5,7 +5,7 @@ class NetConfig:
 
     num_blocks: int
     learning_rate: float
-    l2_const: float
+    l2_constant: float
     from_scratch: bool
     load_path: str
     use_gpu: bool

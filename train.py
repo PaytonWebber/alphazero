@@ -14,7 +14,7 @@ class Trainer:
         self.model = AlphaZeroModel(net_config)
         self.replay_buffer = ds.ReplayBuffer(replay_config)
         self.mcts_config = mcts_config
-        self.min_train_size = 512
+        self.min_train_size = 256
 
     def self_play(self):
         game_history = ds.GameHistory()
@@ -67,7 +67,7 @@ class Trainer:
             policy_acc = (policy_pred_labels == policy_true_labels).float().mean().item()
 
             # Calculate value accuracy
-            value_acc = (torch.abs(value_pred - batch_values) < 0.2).float().mean().item()  # Example threshold
+            value_acc = (torch.abs(value_pred - batch_values) < 0.1).float().mean().item()  # Example threshold
 
             # Format to 4 decimal places
             value_loss = round(value_loss.item(), 4)
@@ -78,8 +78,7 @@ class Trainer:
             print(f"Value loss: {value_loss}, Value acc: {value_acc}, Policy loss: {policy_loss}, Policy acc: {policy_acc}")
 
 
-    def run(self):
-        train_counter = 0
+    def run(self, train_counter: int = 0):
         try:
             while True:
                 self.self_play()
@@ -87,6 +86,7 @@ class Trainer:
                     self.train()
                     train_counter += 1
                     self.model.save(f"models/model_{train_counter}")
+                    self.model.save(f"models/model_latest")
                     self.replay_buffer.clear()
                     
         except KeyboardInterrupt:
@@ -97,23 +97,23 @@ class Trainer:
 if __name__ == "__main__":
     # Network configuration
     net_config = ds.NetConfig()
-    net_config.num_blocks = 5
-    net_config.learning_rate = 0.002
+    net_config.num_blocks = 20
+    net_config.learning_rate = 0.0002
     net_config.l2_constant = 1e-4
-    net_config.from_scratch = True
-    net_config.load_path = "models/model_latest"
+    net_config.from_scratch = False
+    net_config.load_path = "models/model_658"
     net_config.use_gpu = True
 
     # Replay buffer configuration
     replay_config = ds.ReplayConfig()
-    replay_config.buffer_size = 640
-    replay_config.batch_size = 64
+    replay_config.buffer_size = 1000
+    replay_config.batch_size = 32
 
     # MCTS configuration
     mcts_config = ds.MCTSConfig()
-    mcts_config.num_simulations = 81
-    mcts_config.C = 1.2
+    mcts_config.num_simulations = 150
+    mcts_config.C = 1.4
     mcts_config.training = True
 
     trainer = Trainer(net_config, replay_config, mcts_config)
-    trainer.run()
+    trainer.run(train_counter=658)
