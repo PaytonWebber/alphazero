@@ -1,9 +1,11 @@
 import numpy as np
+from torch.utils.data import Dataset
 
 class NetConfig:
     """Config class for AlphaZeroNet."""
 
     num_blocks: int
+    num_hidden_layers: int
     learning_rate: float
     l2_constant: float
     from_scratch: bool
@@ -50,18 +52,61 @@ class GameHistory:
             else:
                 self.rewards[i] = -1
 
+        self._augment_history()
+
+    def _augment_history(self):
+        """Augeument the history by rotating the board state and policies."""
+        augmented_states = []
+        augmented_policies = []
+        augmented_rewards = []
+        for i in range(len(self.states)):
+            state = self.states[i]
+            policies = self.policies[i]
+            reward = self.rewards[i]
+
+            # Original state policy and reward
+            augmented_states.append(state)
+            augmented_policies.append(policies)
+            augmented_rewards.append(reward)
+
+            # Rotate the board state and policies
+            for _ in range(4):
+                state = np.rot90(state)
+                policies = np.rot90(policies.reshape(3, 3)).flatten()
+                augmented_states.append(state)
+                augmented_policies.append(policies)
+                augmented_rewards.append(reward)
+
+            # Flip the board state and policies
+            state = np.flipud(state)
+            policies = np.flipud(policies.reshape(3, 3)).flatten()
+            augmented_states.append(state)
+            augmented_policies.append(policies)
+            augmented_rewards.append(reward)
+
+        self.states = augmented_states
+        self.policies = augmented_policies
+        self.rewards = augmented_rewards
+        
     def get(self):
         """Return the states, actions, and rewards of the entire game."""
         return self.states, self.policies, self.rewards
 
 
-class ReplayBuffer:
+class ReplayBuffer(Dataset):
     def __init__(self, config: ReplayConfig):
         self.config = config
         self.buffer = []
 
     def __len__(self):
         return len(self.buffer)
+
+    def __getitem__(self, idx):
+        return {
+                "states": self.buffer[idx][0],
+                "policies": self.buffer[idx][1],
+                "rewards": self.buffer[idx][2]
+                }
 
     def append(self, game_history):
         """Add a self-play game to the buffer."""
@@ -70,16 +115,6 @@ class ReplayBuffer:
             if len(self.buffer) >= self.config.buffer_size:
                 self.buffer.pop(0)
             self.buffer.append((states[i], policies[i], values[i]))
-
-    def sample(self, batch_size):
-        """Sample a batch of games from the buffer."""
-        assert batch_size <= len(self.buffer)
-        
-        # Sample without replacement
-        indices = np.random.choice(len(self.buffer), size=batch_size, replace=False)
-        states, policies, values = zip(*(self.buffer[idx] for idx in indices))
-        
-        return list(states), list(policies), list(values)
 
     def clear(self):
         """Clear the buffer."""
