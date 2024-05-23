@@ -1,20 +1,25 @@
 import torch
-from torch import nn
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
 from mcts import MCTS_AlphaZero, Node_AlphaZero
 from tictactoe import TicTacToe
 import data_structures as ds
-from model import AlphaZeroModel
-
+from model_v2 import ResNet
 
 class Trainer:
-
-    def __init__(self, net_config: ds.NetConfig, replay_config: ds.ReplayConfig, mcts_config: ds.MCTSConfig):
-        self.model = AlphaZeroModel(net_config)
+    def __init__(self, replay_config: ds.ReplayConfig, mcts_config: ds.MCTSConfig, load_latest=False):
+        self.model = ResNet()
+        if load_latest:
+            self.model.load_latest()
+        self.model.cuda()
+        self.writer = SummaryWriter('logs/model_v2')
         self.replay_buffer = ds.ReplayBuffer(replay_config)
         self.mcts_config = mcts_config
-        self.min_train_size = 256
+        self.min_train_size = 1024
+        self.batch_size = 64
+        self.global_step = 0
 
     def self_play(self):
         game_history = ds.GameHistory()
@@ -29,54 +34,56 @@ class Trainer:
         self.replay_buffer.append(game_history)
         print(f"Game ended with winner: {state.winner()}")
 
+    @staticmethod
+    def custom_collate_fn(batch):
+        states = [item['states'] for item in batch]
+        policies = [item['policies'] for item in batch]
+        rewards = [item['rewards'] for item in batch]
+
+        states = np.stack(states)
+        policies = np.stack(policies)
+        rewards = np.stack(rewards)
+
+        return {
+            'states': torch.tensor(states, dtype=torch.float32),
+            'policies': torch.tensor(policies, dtype=torch.float32),
+            'rewards': torch.tensor(rewards, dtype=torch.float32)
+        }
+
     def train(self):
-        print("Training...")
-        for _ in range(10):
-            # Sample a batch from the replay buffer
-            batch_states, batch_policies, batch_values = self.replay_buffer.sample(self.replay_buffer.config.batch_size)
+        dataloader = DataLoader(self.replay_buffer, batch_size=self.batch_size, shuffle=True, drop_last=True, collate_fn=self.custom_collate_fn)
+        self.model.train()
 
-            # Convert lists of numpy arrays to numpy arrays and then to torch tensors
-            batch_states = torch.tensor(np.array(batch_states), dtype=torch.float32)
-            batch_policies = torch.tensor(np.array(batch_policies), dtype=torch.float32)
-            batch_values = torch.tensor(np.array(batch_values), dtype=torch.float32).view(-1, 1)  # Ensure correct shape
+        for epoch in range(2):
+            for batch in dataloader:
+                states = batch['states'].cuda()
+                policies = batch['policies'].cuda()
+                rewards = batch['rewards'].cuda()
 
-            # Send to GPU if available
-            if self.model.config.use_gpu:
-                batch_states = batch_states.cuda()
-                batch_policies = batch_policies.cuda()
-                batch_values = batch_values.cuda()
+                self.model.optimizer.zero_grad()
+                pi, v = self.model(states)
+                policy_loss = torch.nn.CrossEntropyLoss()(pi, policies)
+                value_loss = torch.nn.MSELoss()(v, rewards.view(-1, 1))
+                loss = policy_loss + value_loss
+                loss.backward()
+                self.model.optimizer.step()
 
-            # Zero gradients
-            self.model.optimizer.zero_grad()
+                self.writer.add_scalar('Loss/policy', policy_loss.item(), self.global_step)
+                self.writer.add_scalar('Loss/value', value_loss.item(), self.global_step)
+                self.writer.add_scalar('Loss/total', loss.item(), self.global_step)
 
-            # Forward pass
-            policy_pred, value_pred = self.model.model(batch_states)
+                pi_pred = torch.argmax(pi, dim=1)
+                pi_acc = torch.sum(pi_pred == torch.argmax(policies, dim=1)).item() / self.batch_size
 
-            # Calculate loss
-            value_loss = nn.functional.mse_loss(value_pred, batch_values)
-            policy_loss = -torch.sum(batch_policies * torch.log(policy_pred + 1e-8)) / batch_policies.size(0)
-            loss = value_loss + policy_loss
+                v_acc = torch.sum(torch.round(v) == rewards.view(-1, 1)).item() / self.batch_size
 
-            # Backward pass
-            loss.backward()
-            self.model.optimizer.step()
+                print(f"Epoch: {epoch}, Pi Loss: {policy_loss.item():.4f}, V Loss: {value_loss.item():.4f}, Pi Acc: {pi_acc:.4f}, V Acc: {v_acc:.4f}")
 
-            # Calculate policy accuracy
-            policy_pred_labels = torch.argmax(policy_pred, dim=1)
-            policy_true_labels = torch.argmax(batch_policies, dim=1)
-            policy_acc = (policy_pred_labels == policy_true_labels).float().mean().item()
+                self.global_step += 1
 
-            # Calculate value accuracy
-            value_acc = (torch.abs(value_pred - batch_values) < 0.1).float().mean().item()  # Example threshold
-
-            # Format to 4 decimal places
-            value_loss = round(value_loss.item(), 4)
-            policy_loss = round(policy_loss.item(), 4)
-            value_acc = round(value_acc, 4)
-            policy_acc = round(policy_acc, 4)
-
-            print(f"Value loss: {value_loss}, Value acc: {value_acc}, Policy loss: {policy_loss}, Policy acc: {policy_acc}")
-
+            for name, param in self.model.named_parameters():
+                self.writer.add_histogram(name, param, epoch)
+                self.writer.add_histogram(f'{name}.grad', param.grad, epoch)
 
     def run(self, train_counter: int = 0):
         try:
@@ -85,35 +92,28 @@ class Trainer:
                 if len(self.replay_buffer) >= self.min_train_size:
                     self.train()
                     train_counter += 1
-                    self.model.save(f"models/model_{train_counter}")
-                    self.model.save(f"models/model_latest")
+                    self.model.save(train_counter)
+                    self.model.save_latest()
                     self.replay_buffer.clear()
                     
         except KeyboardInterrupt:
             print("Training stopped.")
-            self.model.save(f"models/model_latest")
-
+            self.model.save_latest()
+            self.writer.close()
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            self.model.save_latest()
+            self.writer.close()
 
 if __name__ == "__main__":
-    # Network configuration
-    net_config = ds.NetConfig()
-    net_config.num_blocks = 20
-    net_config.learning_rate = 0.0002
-    net_config.l2_constant = 1e-4
-    net_config.from_scratch = False
-    net_config.load_path = "models/model_658"
-    net_config.use_gpu = True
-
-    # Replay buffer configuration
     replay_config = ds.ReplayConfig()
-    replay_config.buffer_size = 1000
-    replay_config.batch_size = 32
+    replay_config.buffer_size = 5000
+    replay_config.batch_size = 128
 
-    # MCTS configuration
     mcts_config = ds.MCTSConfig()
-    mcts_config.num_simulations = 150
+    mcts_config.num_simulations = 200
     mcts_config.C = 1.4
     mcts_config.training = True
 
-    trainer = Trainer(net_config, replay_config, mcts_config)
-    trainer.run(train_counter=658)
+    trainer = Trainer(replay_config, mcts_config, load_latest=False)
+    trainer.run(train_counter=0)
