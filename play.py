@@ -1,7 +1,6 @@
 from tictactoe import TicTacToe
 from mcts import MCTS_AlphaZero, Node_AlphaZero, MCTS_Basic, Node_Basic
-from model import AlphaZeroModel
-import data_structures as ds
+from model_v2 import ResNet
 
 winner_map = {0: "Player 0", 1: "Player 1", 2: "Draw"}
 
@@ -34,8 +33,7 @@ def play_mcts(user_player=0):
     print(f"Game Ended With Winner: {winner_map[state.winner()]}")
 
 def play_alphazero(model, user_player=0):
-    assert user_player in [0, 1]
-    assert isinstance(model, AlphaZeroModel)
+    assert isinstance(model, ResNet)
     state = TicTacToe()
     while not state.is_terminal():
         state.render()
@@ -70,14 +68,8 @@ if __name__ == "__main__":
 
     if opponent == "0": play_mcts()
     else:
-        net_config = ds.NetConfig()
-        net_config.num_blocks = 20
-        net_config.learning_rate = 0.002
-        net_config.l2_constant = 1e-4
-        net_config.from_scratch = True
-        net_config.load_path = "models/model_107"
-        net_config.use_gpu = True
-
-        model = AlphaZeroModel(net_config)
+        model = ResNet()
+        model = model.cuda()
+        model.load_latest()
         play_alphazero(model, 0)
 
