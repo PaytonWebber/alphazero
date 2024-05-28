@@ -119,20 +119,13 @@ class TicTacToe(State):
 
     def _encode(self):
         """Encode the state into multiple channels for the neural network."""
-
         # First channel: current player controled cells
         # Second channel: opponent controled cells
-        # Third channel: empty cells
-
-        encoded = np.zeros((3, 3, 3))
+        encoded = np.zeros((2, 3, 3))
         for i in range(3):
             for j in range(3):
-                if self.board[self.current_player][i][j] == 1:
-                    encoded[0][i][j] = 1
-                elif self.board[1-self.current_player][i][j] == -1:
-                    encoded[1][i][j] = 1
-                else:
-                    encoded[2][i][j] = 1
+                if self.board[0, i, j] == 1: encoded[0, i, j] = 1
+                elif self.board[1, i, j] == 1: encoded[1, i, j] = 1
         return encoded
         
 

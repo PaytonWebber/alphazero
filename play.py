@@ -1,6 +1,6 @@
 from tictactoe import TicTacToe
 from mcts import MCTS_AlphaZero, Node_AlphaZero, MCTS_Basic, Node_Basic
-from model_v2 import ResNet
+from model_v3 import ResNet_v3 as ResNet
 
 winner_map = {0: "Player 0", 1: "Player 1", 2: "Draw"}
 

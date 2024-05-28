@@ -3,7 +3,6 @@ from torch.utils.data import Dataset
 
 class NetConfig:
     """Config class for AlphaZeroNet."""
-
     num_blocks: int
     num_hidden_layers: int
     learning_rate: float
@@ -12,23 +11,14 @@ class NetConfig:
     load_path: str
     use_gpu: bool
 
-
-class ReplayConfig:
-    """Config class for ReplayBuffer."""
-
-    buffer_size: int
-    batch_size: int
-
 class MCTSConfig:
     """Config class for MCTS."""
-
     num_simulations: int
     C: float
     training: bool
 
 class GameHistory:
     """Class to store a game history."""
-
     def __init__(self):
         self.states = []
         self.policies = []
@@ -59,6 +49,7 @@ class GameHistory:
         augmented_states = []
         augmented_policies = []
         augmented_rewards = []
+
         for i in range(len(self.states)):
             state = self.states[i]
             policies = self.policies[i]
@@ -71,18 +62,17 @@ class GameHistory:
 
             # Rotate the board state and policies
             for _ in range(4):
-                state = np.rot90(state)
+                # HACK: This is a hack to deal with the fact that the state is a 2D array
+                state_curr_player = state[0]
+                state_opp_player = state[1]
+                curr_player = np.rot90(state_curr_player)
+                opp_player = np.rot90(state_opp_player)
+                state = np.array([curr_player, opp_player])
+
                 policies = np.rot90(policies.reshape(3, 3)).flatten()
                 augmented_states.append(state)
                 augmented_policies.append(policies)
                 augmented_rewards.append(reward)
-
-            # Flip the board state and policies
-            state = np.flipud(state)
-            policies = np.flipud(policies.reshape(3, 3)).flatten()
-            augmented_states.append(state)
-            augmented_policies.append(policies)
-            augmented_rewards.append(reward)
 
         self.states = augmented_states
         self.policies = augmented_policies
@@ -94,8 +84,8 @@ class GameHistory:
 
 
 class ReplayBuffer(Dataset):
-    def __init__(self, config: ReplayConfig):
-        self.config = config
+    def __init__(self, buffer_size: int=5000):
+        self.buffer_size = buffer_size
         self.buffer = []
 
     def __len__(self):
@@ -112,8 +102,7 @@ class ReplayBuffer(Dataset):
         """Add a self-play game to the buffer."""
         states, policies, values = game_history.get()
         for i in range(len(states)):
-            if len(self.buffer) >= self.config.buffer_size:
-                self.buffer.pop(0)
+            if self.is_full(): self.buffer.pop(0)
             self.buffer.append((states[i], policies[i], values[i]))
 
     def clear(self):
@@ -122,4 +111,4 @@ class ReplayBuffer(Dataset):
 
     def is_full(self):
         """Return True if the buffer is full."""
-        return len(self.buffer) == self.config.buffer_size
+        return len(self.buffer) == self.buffer_size

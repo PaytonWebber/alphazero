@@ -56,22 +56,18 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-class ResNet(nn.Module):
-    def __init__(self, H=[200,100], num_channels = 64):
-        # input shape: batch_size x 3 x args.M x args.N
-        super(ResNet, self).__init__()
+class ResNet_v2(nn.Module):
+    def __init__(self, H=[200,100], num_channels=64):
+        # input shape: batch_size x 2 x args.M x args.N
+        super(ResNet_v2, self).__init__()
         
         self.initial_block = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=num_channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=2, out_channels=num_channels, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_channels),
             nn.ReLU()
         )
         self.middle_blocks = nn.Sequential(
             *[ResnetBlock(num_channels,num_channels) for _ in range(5)]
-        )
-        self.dropout_blocks = nn.Sequential(
-            DropoutBlock(num_channels * args['M'] * args['N'], H[0]),
-            DropoutBlock(H[0], H[1])
         )
         self.mlp = nn.Sequential(
             *[MLP(num_channels * args['M'] * args['N'], num_channels * args['M'] * args['N']) for _ in range(2)]
@@ -81,7 +77,12 @@ class ResNet(nn.Module):
             self.middle_blocks,
             nn.Flatten(start_dim=1),
             self.mlp,
-            self.dropout_blocks
+            nn.Linear(num_channels*args['M']*args['N'], H[0]),
+            nn.LayerNorm(H[0]),
+            nn.ReLU(),
+            nn.Linear(H[0], H[1]),
+            nn.LayerNorm(H[1]),
+            nn.ReLU(),
         )
         self.value_head = nn.Sequential(
             nn.Linear(H[1], H[1]),
@@ -112,18 +113,18 @@ class ResNet(nn.Module):
 
     def save(self, epoch):
         print(f"Saving model at epoch {epoch}")
-        torch.save(self.state_dict(), f"models/model_{epoch}")
+        torch.save(self.state_dict(), f"models/model_v2/model_{epoch}.pt")
 
     def load(self, epoch):
         print(f"Loading model at epoch {epoch}")
-        self.load_state_dict(torch.load(f"models/model_{epoch}"))
+        self.load_state_dict(torch.load(f"models/model_v2/model_{epoch}.pt"))
 
     def save_latest(self):
         print("Saving latest model")
-        torch.save(self.state_dict(), "models/model_latest")
+        torch.save(self.state_dict(), "models/model_v2/model_latest.pt")
 
     def load_latest(self):
         print("Loading latest model")
-        self.load_state_dict(torch.load("models/model_latest"))
+        self.load_state_dict(torch.load("models/model_v2/model_latest.pt"))
 
 

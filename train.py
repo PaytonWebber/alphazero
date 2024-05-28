@@ -1,25 +1,27 @@
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 import numpy as np
 
 from mcts import MCTS_AlphaZero, Node_AlphaZero
 from tictactoe import TicTacToe
 import data_structures as ds
-from model_v2 import ResNet
+from model_v3 import ResNet_v3 as ResNet
 
 class Trainer:
-    def __init__(self, replay_config: ds.ReplayConfig, mcts_config: ds.MCTSConfig, load_latest=False):
-        self.model = ResNet()
+    def __init__(self, mcts_config: ds.MCTSConfig, load_latest=False, load_epoch=None, global_step=0):
+        self.model = ResNet(lr=0.00002)
         if load_latest:
             self.model.load_latest()
+        elif load_epoch:
+            self.model.load(load_epoch)
         self.model.cuda()
-        self.writer = SummaryWriter('logs/model_v2')
-        self.replay_buffer = ds.ReplayBuffer(replay_config)
+        self.writer = SummaryWriter('logs/model_v3')
+        self.replay_buffer = ds.ReplayBuffer(10000)
         self.mcts_config = mcts_config
         self.min_train_size = 1024
         self.batch_size = 64
-        self.global_step = 0
+        self.global_step = global_step
 
     def self_play(self):
         game_history = ds.GameHistory()
@@ -70,7 +72,6 @@ class Trainer:
 
                 self.writer.add_scalar('Loss/policy', policy_loss.item(), self.global_step)
                 self.writer.add_scalar('Loss/value', value_loss.item(), self.global_step)
-                self.writer.add_scalar('Loss/total', loss.item(), self.global_step)
 
                 pi_pred = torch.argmax(pi, dim=1)
                 pi_acc = torch.sum(pi_pred == torch.argmax(policies, dim=1)).item() / self.batch_size
@@ -89,7 +90,7 @@ class Trainer:
         try:
             while True:
                 self.self_play()
-                if len(self.replay_buffer) >= self.min_train_size:
+                if self.replay_buffer.is_full() or len(self.replay_buffer) >= self.min_train_size:
                     self.train()
                     train_counter += 1
                     self.model.save(train_counter)
@@ -100,20 +101,16 @@ class Trainer:
             print("Training stopped.")
             self.model.save_latest()
             self.writer.close()
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            self.model.save_latest()
-            self.writer.close()
+        # except Exception as e:
+        #     print(f"An error occurred: {e}")
+        #     self.model.save_latest()
+        #     self.writer.close()
 
 if __name__ == "__main__":
-    replay_config = ds.ReplayConfig()
-    replay_config.buffer_size = 5000
-    replay_config.batch_size = 128
-
     mcts_config = ds.MCTSConfig()
-    mcts_config.num_simulations = 200
+    mcts_config.num_simulations = 150
     mcts_config.C = 1.4
     mcts_config.training = True
 
-    trainer = Trainer(replay_config, mcts_config, load_latest=False)
-    trainer.run(train_counter=0)
+    trainer = Trainer(mcts_config, load_latest=False, load_epoch=953, global_step=30940)
+    trainer.run(train_counter=953)

@@ -171,10 +171,11 @@ class MCTS_AlphaZero:
         for child in self.root.children:
             policy[child.action] = child.N
         policy /= np.sum(policy)
-        policy = policy.flatten()
-        action = max(self.root.children, key=lambda n: n.N).action
+        action = np.argmax(policy)
+        action = np.unravel_index(action, (3, 3))
+        # action = max(self.root.children, key=lambda n: n.N).action
 
-        return action, policy
+        return action, policy.flatten()
 
     def select(self) -> Node_AlphaZero:
         """Using the PUCT formula, select the best node to expand."""
