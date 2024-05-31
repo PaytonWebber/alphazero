@@ -1,15 +1,15 @@
 from mcts import MCTS_AlphaZero, Node_AlphaZero, MCTS_Basic, Node_Basic
 from tictactoe import TicTacToe
-from model_v3 import ResNet_v3 as ResNet
+from model_v4 import ResNet_v4 as ResNet
 
-num_simulations = 25
-C = 1.4
+num_simulations = 3 
+C = 1.5
 
 def evaluate(num_games: int = 100):
 
     model = ResNet()
-    # model.load_latest()
-    model.load(953)
+    model.load_latest()
+    # model.load(953)
     model.cuda()
 
     wins = 0

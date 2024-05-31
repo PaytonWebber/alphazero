@@ -88,6 +88,6 @@ class ResNet_v3(nn.Module):
 
     def load_latest(self):
         print("Loading latest model")
-        self.load_state_dict(torch.load("models/model_v3/model_latest.pt"))
+        self.load_state_dict(torch.load("/home/payton/projects/alphazero/models/model_v3/model_latest.pt"))
 
 

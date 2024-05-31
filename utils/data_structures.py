@@ -67,7 +67,7 @@ class GameHistory:
                 state_opp_player = state[1]
                 curr_player = np.rot90(state_curr_player)
                 opp_player = np.rot90(state_opp_player)
-                state = np.array([curr_player, opp_player])
+                state = np.array([curr_player, opp_player, state[2]])
 
                 policies = np.rot90(policies.reshape(3, 3)).flatten()
                 augmented_states.append(state)

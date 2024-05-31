@@ -4,19 +4,19 @@ from torch.utils.tensorboard.writer import SummaryWriter
 import numpy as np
 
 from mcts import MCTS_AlphaZero, Node_AlphaZero
-from tictactoe import TicTacToe
-import data_structures as ds
-from model_v3 import ResNet_v3 as ResNet
+from utils import TicTacToe
+from utils import data_structures as ds
+from model_code import ResNet_v4
 
 class Trainer:
     def __init__(self, mcts_config: ds.MCTSConfig, load_latest=False, load_epoch=None, global_step=0):
-        self.model = ResNet(lr=0.00002)
+        self.model = ResNet_v4(lr=0.002)
         if load_latest:
             self.model.load_latest()
         elif load_epoch:
             self.model.load(load_epoch)
         self.model.cuda()
-        self.writer = SummaryWriter('logs/model_v3')
+        self.writer = SummaryWriter('logs/model_v4')
         self.replay_buffer = ds.ReplayBuffer(10000)
         self.mcts_config = mcts_config
         self.min_train_size = 1024
@@ -112,5 +112,5 @@ if __name__ == "__main__":
     mcts_config.C = 1.4
     mcts_config.training = True
 
-    trainer = Trainer(mcts_config, load_latest=False, load_epoch=953, global_step=30940)
-    trainer.run(train_counter=953)
+    trainer = Trainer(mcts_config, load_latest=False, load_epoch=None, global_step=0)
+    trainer.run(train_counter=0)
