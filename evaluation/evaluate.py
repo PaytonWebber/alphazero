@@ -1,16 +1,17 @@
-from mcts import MCTS_AlphaZero, Node_AlphaZero, MCTS_Basic, Node_Basic
-from tictactoe import TicTacToe
-from model_v4 import ResNet_v4 as ResNet
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+import torch
+from core import Node_az, MCTS_az, Node_basic, MCTS_basic, TicTacToe
+from model_code import AlphaZeroNet
 
-num_simulations = 3 
-C = 1.5
+num_simulations = 100
+C = 1.4
 
 def evaluate(num_games: int = 100):
 
-    model = ResNet()
-    model.load_latest()
-    # model.load(953)
-    model.cuda()
+    model = AlphaZeroNet(input_shape=(2, 3, 3), num_actions=9).cuda()
+    model.load_state_dict(torch.load("./models/model_latest.pt"))
 
     wins = 0
     draws = 0
@@ -23,12 +24,12 @@ def evaluate(num_games: int = 100):
             state = TicTacToe()
             while not state.is_terminal():
                 if state.current_player == model_player:
-                    root = Node_AlphaZero(state, None, state.current_player)
-                    mcts = MCTS_AlphaZero(root, model, C, num_simulations, training=False)
+                    root = Node_az(state, state.current_player)
+                    mcts = MCTS_az(root, model, C, num_simulations, training=False)
                     action, _ = mcts.search()
                 else:
-                    root = Node_Basic(state, None, state.current_player)
-                    mcts = MCTS_Basic(root, num_simulations=num_simulations, C=C)
+                    root = Node_basic(state, state.current_player)
+                    mcts = MCTS_basic(root, num_simulations=num_simulations, C=C)
                     action = mcts.search()
                 state = state.step(action)
             if state.winner() == model_player:

@@ -8,6 +8,7 @@ from utils import TicTacToe
 from utils import data_structures as ds
 from model_code import ResNet_v4
 
+
 class Trainer:
     def __init__(self, mcts_config: ds.MCTSConfig, load_latest=False, load_epoch=None, global_step=0):
         self.model = ResNet_v4(lr=0.002)
@@ -28,7 +29,8 @@ class Trainer:
         state = TicTacToe()
         while not state.is_terminal():
             root = Node_AlphaZero(state, None, state.current_player)
-            mcts = MCTS_AlphaZero(root, self.model, self.mcts_config.C, self.mcts_config.num_simulations, self.mcts_config.training)
+            mcts = MCTS_AlphaZero(root, self.model, self.mcts_config.C,
+                                  self.mcts_config.num_simulations, self.mcts_config.training)
             action, pi = mcts.search()
             game_history.add(state._encode(), pi, state.current_player)
             state = state.step(action)
@@ -53,7 +55,8 @@ class Trainer:
         }
 
     def train(self):
-        dataloader = DataLoader(self.replay_buffer, batch_size=self.batch_size, shuffle=True, drop_last=True, collate_fn=self.custom_collate_fn)
+        dataloader = DataLoader(self.replay_buffer, batch_size=self.batch_size,
+                                shuffle=True, drop_last=True, collate_fn=self.custom_collate_fn)
         self.model.train()
 
         for epoch in range(2):
@@ -70,15 +73,20 @@ class Trainer:
                 loss.backward()
                 self.model.optimizer.step()
 
-                self.writer.add_scalar('Loss/policy', policy_loss.item(), self.global_step)
-                self.writer.add_scalar('Loss/value', value_loss.item(), self.global_step)
+                self.writer.add_scalar(
+                    'Loss/policy', policy_loss.item(), self.global_step)
+                self.writer.add_scalar(
+                    'Loss/value', value_loss.item(), self.global_step)
 
                 pi_pred = torch.argmax(pi, dim=1)
-                pi_acc = torch.sum(pi_pred == torch.argmax(policies, dim=1)).item() / self.batch_size
+                pi_acc = torch.sum(pi_pred == torch.argmax(
+                    policies, dim=1)).item() / self.batch_size
 
-                v_acc = torch.sum(torch.round(v) == rewards.view(-1, 1)).item() / self.batch_size
+                v_acc = torch.sum(torch.round(
+                    v) == rewards.view(-1, 1)).item() / self.batch_size
 
-                print(f"Epoch: {epoch}, Pi Loss: {policy_loss.item():.4f}, V Loss: {value_loss.item():.4f}, Pi Acc: {pi_acc:.4f}, V Acc: {v_acc:.4f}")
+                print(
+                    f"Epoch: {epoch}, Pi Loss: {policy_loss.item():.4f}, V Loss: {value_loss.item():.4f}, Pi Acc: {pi_acc:.4f}, V Acc: {v_acc:.4f}")
 
                 self.global_step += 1
 
@@ -96,7 +104,7 @@ class Trainer:
                     self.model.save(train_counter)
                     self.model.save_latest()
                     self.replay_buffer.clear()
-                    
+
         except KeyboardInterrupt:
             print("Training stopped.")
             self.model.save_latest()
@@ -106,11 +114,13 @@ class Trainer:
         #     self.model.save_latest()
         #     self.writer.close()
 
+
 if __name__ == "__main__":
     mcts_config = ds.MCTSConfig()
     mcts_config.num_simulations = 150
     mcts_config.C = 1.4
     mcts_config.training = True
 
-    trainer = Trainer(mcts_config, load_latest=False, load_epoch=None, global_step=0)
+    trainer = Trainer(mcts_config, load_latest=False,
+                      load_epoch=None, global_step=0)
     trainer.run(train_counter=0)

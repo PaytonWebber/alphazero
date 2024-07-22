@@ -1,8 +1,8 @@
 from typing import Tuple
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import numpy as np
 
 def init_weights(m: nn.Module):
     """Initialize weights for Conv2d and Linear layers using kaming initializer."""
@@ -48,6 +48,7 @@ class AlphaZeroNet(nn.Module):
         self.input_shape = input_shape
         c, h, w = input_shape
 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.conv_block = nn.Sequential(
             nn.Conv2d(c, num_filters, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(num_filters),
@@ -88,6 +89,19 @@ class AlphaZeroNet(nn.Module):
     def get_conv_output(self, shape):
         o = self.conv_output_size(shape[1])
         return int(o * o * 256)  # 256 is the number of filters
+    
+    def infer(self, state):
+        with torch.no_grad():
+            # Ensure state has 4 dimensions: [batch, channels, height, width]
+            if state.ndim == 2:
+                state = state[np.newaxis, np.newaxis, :, :]
+            elif state.ndim == 3:
+                state = state[np.newaxis, :, :, :]
+
+            state = torch.tensor(state, dtype=torch.float32).clone().detach().to(self.device)
+
+            pi, v = self.forward(state)
+            return pi.squeeze(0).cpu().numpy(), v.squeeze(0).cpu().numpy()
 
     def forward(self, x):
         x = self.conv_block(x)

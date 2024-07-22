@@ -6,11 +6,10 @@ print(f"CUDA device count: {torch.cuda.device_count()}")
 if torch.cuda.is_available():
     print(f"Current CUDA device: {torch.cuda.current_device()}")
 from torch.optim import Adam
-from torch.optim.lr_scheduler import StepLR
 import torch.nn.functional as F
 import ray
 
-from core import MCTS, Node, TicTacToe
+from core import MCTS_az as MCTS, Node_az as Node, TicTacToe
 from model_code import AlphaZeroNet
 
 class GameHistory:
@@ -88,8 +87,13 @@ def self_play(model_actor, C, num_simulations, seed, training=True):
 def train_model(model, optimizer, states, policies, rewards):
     model.train()
 
+    states = np.array(states)
     states = torch.tensor(states, dtype=torch.float32).cuda()
+
+    policies = np.array(policies)
     policies = torch.tensor(policies, dtype=torch.float32).cuda()
+
+    rewards = np.array(rewards)
     rewards = torch.tensor(rewards, dtype=torch.float32).view(-1, 1).cuda()
 
     optimizer.zero_grad()
@@ -129,9 +133,12 @@ def train_loop(model_actor, model, optimizer, num_epochs, num_games, num_simulat
             torch.save(model.state_dict(), f'./models/model_{epoch}.pt')
 
 if __name__ == '__main__':
-    ray.init()
+    ray.init(address='auto')
     model = AlphaZeroNet(input_shape=(2, 3, 3), num_actions=9).cuda()
     optimizer = Adam(model.parameters(), lr=0.001)
     model_actor = ModelActor.remote(AlphaZeroNet(input_shape=(2, 3, 3), num_actions=9))  # Pass the model class, not an instance
-    train_loop(model_actor, model, optimizer, num_epochs=100, num_games=20, num_simulations=50, C=1, batch_size=32)
+    try:
+        train_loop(model_actor, model, optimizer, num_epochs=100, num_games=20, num_simulations=50, C=1, batch_size=32)
+    except KeyboardInterrupt:
+        torch.save(model.state_dict(), './models/model_latest.pt')
     ray.shutdown()

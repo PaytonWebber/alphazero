@@ -1,10 +1,11 @@
+from model_code import ResNet_v4 as ResNet
+from utils import TicTacToe
 import numpy as np
 import torch
-import os, sys
+import os
+import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tictactoe import TicTacToe
-from model_v3 import ResNet_v3 as ResNet
 
 def test_value_draw():
     model = ResNet()
@@ -30,6 +31,7 @@ def test_value_draw():
     print(np.argmax(pi))
     assert v.item() == 0
 
+
 def test_value_lose():
     model = ResNet()
     model.load_latest()
@@ -53,6 +55,7 @@ def test_value_lose():
     print(pi)
     print(np.argmax(pi))
     assert v.item() == -1
+
 
 def test_value_win():
     model = ResNet()
